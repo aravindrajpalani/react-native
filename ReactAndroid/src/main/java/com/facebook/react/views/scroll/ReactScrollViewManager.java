@@ -80,6 +80,12 @@ public class ReactScrollViewManager
     view.setRemoveClippedSubviews(removeClippedSubviews);
   }
 
+  @ReactProp(name = "snapToInterval")
+  public void setSnapToInterval(ReactHorizontalScrollView view, float snapToInterval) {
+    // snapToInterval needs to be exposed as a float because of the Javascript interface.
+    DisplayMetrics screenDisplayMetrics = DisplayMetricsHolder.getScreenDisplayMetrics();
+    view.setSnapInterval((int) (snapToInterval * screenDisplayMetrics.density));
+  }
   /**
    * Computing momentum events is potentially expensive since we post a runnable on the UI thread
    * to see when it is done.  We only do that if {@param sendMomentumEvents} is set to true.  This
@@ -217,7 +223,10 @@ public class ReactScrollViewManager
       scrollView.scrollTo(scrollView.getScrollX(), bottom);
     }
   }
-
+@ReactProp(name = "pagingEnabled")
+  public void setPagingEnabled(ReactScrollView view, boolean pagingEnabled) {
+   view.setPagingEnabled(pagingEnabled);
+  }
   @Override
   public @Nullable Map<String, Object> getExportedCustomDirectEventTypeConstants() {
     return createExportedCustomDirectEventTypeConstants();
