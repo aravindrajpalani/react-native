@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
  * use {@link ReactHorizontalScrollView}.
  */
 @TargetApi(11)
-public class ReactScrollView extends ScrollView implements ReactClippingViewGroup, ViewGroup.OnHierarchyChangeListener, View.OnLayoutChangeListener {
+public class ReactScrollView extends ScrollView implements ReactClippingViewGroup, ViewGroup.OnHierarchyChangeListener {
 
 
   private boolean mActivelyScrolling;
@@ -54,7 +54,7 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
   private static boolean sTriedToGetScrollerField = false;
 
   private final OnScrollDispatchHelper mOnScrollDispatchHelper = new OnScrollDispatchHelper();
-  private final @Nullable OverScroller mScroller;
+  // private final @Nullable OverScroller mScroller;
   private final VelocityHelper mVelocityHelper = new VelocityHelper();
 
   private @Nullable Rect mClippingRect;
@@ -73,56 +73,59 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
   public ReactScrollView(ReactContext context) {
     this(context, null);
+    int currentY = getScrollY();
+    Log.v("EFRRinitY","="+currentY);
   }
 
   public ReactScrollView(ReactContext context, @Nullable FpsListener fpsListener) {
     super(context);
+    int currentY = getScrollY();
+    Log.v("EFRRinitY","="+currentY);
     mFpsListener = fpsListener;
     mReactBackgroundManager = new ReactViewBackgroundManager(this);
 
-    mScroller = getOverScrollerFromParent();
     setOnHierarchyChangeListener(this);
     setScrollBarStyle(SCROLLBARS_OUTSIDE_OVERLAY);
   }
 
-  @Nullable
-  private OverScroller getOverScrollerFromParent() {
-    OverScroller scroller;
+  // @Nullable
+  // private OverScroller getOverScrollerFromParent() {
+  //   OverScroller scroller;
 
-    if (!sTriedToGetScrollerField) {
-      sTriedToGetScrollerField = true;
-      try {
-        sScrollerField = ScrollView.class.getDeclaredField("mScroller");
-        sScrollerField.setAccessible(true);
-      } catch (NoSuchFieldException e) {
-        Log.w(
-          ReactConstants.TAG,
-          "Failed to get mScroller field for ScrollView! " +
-            "This app will exhibit the bounce-back scrolling bug :(");
-      }
-    }
+  //   if (!sTriedToGetScrollerField) {
+  //     sTriedToGetScrollerField = true;
+  //     try {
+  //       sScrollerField = ScrollView.class.getDeclaredField("mScroller");
+  //       sScrollerField.setAccessible(true);
+  //     } catch (NoSuchFieldException e) {
+  //       Log.w(
+  //         ReactConstants.TAG,
+  //         "Failed to get mScroller field for ScrollView! " +
+  //           "This app will exhibit the bounce-back scrolling bug :(");
+  //     }
+  //   }
 
-    if (sScrollerField != null) {
-      try {
-        Object scrollerValue = sScrollerField.get(this);
-        if (scrollerValue instanceof OverScroller) {
-          scroller = (OverScroller) scrollerValue;
-        } else {
-          Log.w(
-            ReactConstants.TAG,
-            "Failed to cast mScroller field in ScrollView (probably due to OEM changes to AOSP)! " +
-              "This app will exhibit the bounce-back scrolling bug :(");
-          scroller = null;
-        }
-      } catch (IllegalAccessException e) {
-        throw new RuntimeException("Failed to get mScroller from ScrollView!", e);
-      }
-    } else {
-      scroller = null;
-    }
+  //   if (sScrollerField != null) {
+  //     try {
+  //       Object scrollerValue = sScrollerField.get(this);
+  //       if (scrollerValue instanceof OverScroller) {
+  //         scroller = (OverScroller) scrollerValue;
+  //       } else {
+  //         Log.w(
+  //           ReactConstants.TAG,
+  //           "Failed to cast mScroller field in ScrollView (probably due to OEM changes to AOSP)! " +
+  //             "This app will exhibit the bounce-back scrolling bug :(");
+  //         scroller = null;
+  //       }
+  //     } catch (IllegalAccessException e) {
+  //       throw new RuntimeException("Failed to get mScroller from ScrollView!", e);
+  //     }
+  //   } else {
+  //     scroller = null;
+  //   }
 
-    return scroller;
-  }
+  //   return scroller;
+  // }
 
   public void setSendMomentumEvents(boolean sendMomentumEvents) {
     mSendMomentumEvents = sendMomentumEvents;
@@ -225,10 +228,13 @@ mActivelyScrolling = true;
     mVelocityHelper.calculateVelocity(ev);
     int action = ev.getAction() & MotionEvent.ACTION_MASK;
     if (action == MotionEvent.ACTION_UP && mDragging) {
+      float velocityX = mVelocityHelper.getXVelocity();
+      float velocityY = mVelocityHelper.getYVelocity();
+      
       ReactScrollViewHelper.emitScrollEndDragEvent(
         this,
-        mVelocityHelper.getXVelocity(),
-        mVelocityHelper.getYVelocity());
+        velocityX,
+        velocityY);
       mDragging = false;
      
       handlePostTouchScrolling(Math.round(velocityX), Math.round(velocityY));
@@ -274,16 +280,16 @@ mActivelyScrolling = true;
     if (mSnapInterval != 0) {
       return mSnapInterval;
     }
-    return getWidth();
+    return getHeight();
   }
   @Override
   public void fling(int velocityY) {
     if (mPagingEnabled) {
-      smoothScrollToPage(velocityX);
+      smoothScrollToPage(velocityY);
     } else {
-      super.fling(velocityX);
+      super.fling(velocityY);
     }
-    handlePostTouchScrolling(velocityX, 0);
+    handlePostTouchScrolling(0,velocityY);
   }
 
   private void enableFpsListener() {
@@ -306,11 +312,7 @@ mActivelyScrolling = true;
     return mFpsListener != null && mScrollPerfTag != null && !mScrollPerfTag.isEmpty();
   }
 
-  private int getMaxScrollY() {
-    int contentHeight = mContentView.getHeight();
-    int viewportHeight = getHeight() - getPaddingBottom() - getPaddingTop();
-    return Math.max(0, contentHeight - viewportHeight);
-  }
+  
 
   @Override
   public void draw(Canvas canvas) {
@@ -349,7 +351,7 @@ private void handlePostTouchScrolling(int velocityX, int velocityY) {
         if (mActivelyScrolling) {
           // We are still scrolling so we just post to check again a frame later
           mActivelyScrolling = false;
-          ViewCompat.postOnAnimationDelayed(ReactHorizontalScrollView.this,
+          ViewCompat.postOnAnimationDelayed(ReactScrollView.this,
             this,
             ReactScrollViewHelper.MOMENTUM_DELAY);
         } else {
@@ -358,33 +360,32 @@ private void handlePostTouchScrolling(int velocityX, int velocityY) {
             // need to continue checking for the scroll.  And we cause that scroll by asking for it
             mSnappingToPage = true;
             smoothScrollToPage(0);
-            ViewCompat.postOnAnimationDelayed(ReactHorizontalScrollView.this,
+            ViewCompat.postOnAnimationDelayed(ReactScrollView.this,
               this,
               ReactScrollViewHelper.MOMENTUM_DELAY);
           } else {
             if (mSendMomentumEvents) {
-              ReactScrollViewHelper.emitScrollMomentumEndEvent(ReactHorizontalScrollView.this);
+              ReactScrollViewHelper.emitScrollMomentumEndEvent(ReactScrollView.this);
             }
-            ReactHorizontalScrollView.this.mPostTouchRunnable = null;
+            ReactScrollView.this.mPostTouchRunnable = null;
             disableFpsListener();
           }
         }
       }
     };
-    ViewCompat.postOnAnimationDelayed(ReactHorizontalScrollView.this,
+    ViewCompat.postOnAnimationDelayed(ReactScrollView.this,
       mPostTouchRunnable,
       ReactScrollViewHelper.MOMENTUM_DELAY);
   }
  private void smoothScrollToPage(int velocity) {
-    int width = getSnapInterval();
-    int currentX = getScrollX();
-    // TODO (t11123799) - Should we do anything beyond linear accounting of the velocity
-    int predictedX = currentX + velocity;
-    int page = currentX / width;
-    if (predictedX > page * width + width / 2) {
+    int height = getSnapInterval();
+    int currentY = getScrollY();
+    int predictedY = currentY + velocity;
+    int page = currentY / height;
+    if (predictedY > page * height + height / 2) {
       page = page + 1;
     }
-    smoothScrollTo(page * width, getScrollY());
+    smoothScrollTo(getScrollX(),page * height);
   }
   public void setEndFillColor(int color) {
     if (color != mEndFillColor) {
@@ -395,22 +396,23 @@ private void handlePostTouchScrolling(int velocityX, int velocityY) {
 
   @Override
   protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
-    if (mScroller != null) {
-      // FB SCROLLVIEW CHANGE
+    // if (mScroller != null) {
+    //   // FB SCROLLVIEW CHANGE
 
-      // This is part two of the reimplementation of fling to fix the bounce-back bug. See #fling() for
-      // more information.
+    //   // This is part two of the reimplementation of fling to fix the bounce-back bug. See #fling() for
+    //   // more information.
 
-      if (!mScroller.isFinished() && mScroller.getCurrY() != mScroller.getFinalY()) {
-        int scrollRange = getMaxScrollY();
-        if (scrollY >= scrollRange) {
-          mScroller.abortAnimation();
-          scrollY = scrollRange;
-        }
-      }
+    //   if (!mScroller.isFinished() && mScroller.getCurrY() != mScroller.getFinalY()) {
+    //     int scrollRange = getMaxScrollY();
+    //     if (scrollY >= scrollRange) {
+    //       mScroller.abortAnimation();
+    //       scrollY = scrollRange;
+    //       Log.v("EFRR","scrollRange"+scrollRange);
+    //     }
+    //   }
 
-      // END FB SCROLLVIEW CHANGE
-    }
+    //   // END FB SCROLLVIEW CHANGE
+    // }
 
     super.onOverScrolled(scrollX, scrollY, clampedX, clampedY);
   }
@@ -418,12 +420,12 @@ private void handlePostTouchScrolling(int velocityX, int velocityY) {
   @Override
   public void onChildViewAdded(View parent, View child) {
     mContentView = child;
-    mContentView.addOnLayoutChangeListener(this);
+    // mContentView.addOnLayoutChangeListener(this);
   }
 
   @Override
   public void onChildViewRemoved(View parent, View child) {
-    mContentView.removeOnLayoutChangeListener(this);
+    // mContentView.removeOnLayoutChangeListener(this);
     mContentView = null;
   }
 
@@ -432,18 +434,7 @@ private void handlePostTouchScrolling(int velocityX, int velocityY) {
    * after the content resizes. Without this, the user would see a blank ScrollView when the scroll
    * position is larger than the ScrollView's max scroll position after the content shrinks.
    */
-  @Override
-  public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
-    if (mContentView == null) {
-      return;
-    }
-
-    int currentScrollY = getScrollY();
-    int maxScrollY = getMaxScrollY();
-    if (currentScrollY > maxScrollY) {
-      scrollTo(getScrollX(), maxScrollY);
-    }
-  }
+  
 
   @Override
   public void setBackgroundColor(int color) {
